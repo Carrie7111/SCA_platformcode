@@ -1,0 +1,83 @@
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/svn/SCA/!svn/ver/1369/trunk/sca/modules/compress
+END
+PatternResample$1.class
+K 25
+svn:wc:ra_dav:version-url
+V 73
+/svn/SCA/!svn/ver/1369/trunk/sca/modules/compress/PatternResample$1.class
+END
+PatternResample$2.class
+K 25
+svn:wc:ra_dav:version-url
+V 73
+/svn/SCA/!svn/ver/1369/trunk/sca/modules/compress/PatternResample$2.class
+END
+RFResample.java
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/SCA/!svn/ver/710/trunk/sca/modules/compress/RFResample.java
+END
+PatternResample$PathFinder.class
+K 25
+svn:wc:ra_dav:version-url
+V 82
+/svn/SCA/!svn/ver/1369/trunk/sca/modules/compress/PatternResample$PathFinder.class
+END
+RFResample.class
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/SCA/!svn/ver/1369/trunk/sca/modules/compress/RFResample.class
+END
+SyncResample.java
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/SCA/!svn/ver/710/trunk/sca/modules/compress/SyncResample.java
+END
+PatternResample.java
+K 25
+svn:wc:ra_dav:version-url
+V 69
+/svn/SCA/!svn/ver/710/trunk/sca/modules/compress/PatternResample.java
+END
+Resample.java
+K 25
+svn:wc:ra_dav:version-url
+V 62
+/svn/SCA/!svn/ver/710/trunk/sca/modules/compress/Resample.java
+END
+SyncResample.class
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/SCA/!svn/ver/1369/trunk/sca/modules/compress/SyncResample.class
+END
+WindowedResample.java
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/svn/SCA/!svn/ver/710/trunk/sca/modules/compress/WindowedResample.java
+END
+PatternResample.class
+K 25
+svn:wc:ra_dav:version-url
+V 71
+/svn/SCA/!svn/ver/1369/trunk/sca/modules/compress/PatternResample.class
+END
+Resample.class
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/SCA/!svn/ver/1369/trunk/sca/modules/compress/Resample.class
+END
+WindowedResample.class
+K 25
+svn:wc:ra_dav:version-url
+V 72
+/svn/SCA/!svn/ver/1369/trunk/sca/modules/compress/WindowedResample.class
+END

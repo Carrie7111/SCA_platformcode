@@ -1,0 +1,258 @@
+/**
+ * Copyright (c) 2010 Riscure BV. All rights reserved.
+ */
+
+package compress;
+
+import java.awt.BorderLayout;
+import java.awt.GridLayout;
+import javax.swing.JPanel;
+import com.module.Data;
+import com.module.core.Module;
+import com.module.core.ModuleDesc;
+import com.module.ModuleInChain;
+import com.module.core.Trace;
+import com.module.operations.DataOperationException;
+@ModuleDesc(pkgName="Resample", name="RFResample", desc="",isVisible=false)
+public class RFResample extends Module implements ModuleInChain {
+
+    private static final long serialVersionUID = 1L;
+
+    private JPanel mainPanel;
+
+    /** RESAMPLE_FREQUENCY is initial value for resample frequency before tuning to peak in frequency spectrum within margin*/
+    private static final float RESAMPLE_FREQUENCY = 27.12E6f;
+    /** resampleFrequency is the sample frequency of the resulting trace set */
+    private float resampleFrequency;
+    /** margin is used in two ways: to allow tuning of the resampleFrequency and to allow gradually shifting of the search interval for getPeakIndex */
+    private float margin;
+    /** factor is ratio between resampleFrequency / sampleFrequency */
+    private float factor;
+    /** fftSize is the size of the input array for fft transformation */
+    public int fftSize;
+    /** resampleLength is the number of samples in the resulting trace set */
+    public int resampleLength;
+    /** orgLength is the number of samples in the input trace set  */
+    public int orgLength;
+    /** startPartition is the start of the averaging interval expressed in % of the 27.12 MHz clock cycle, relative to the detected peak position */
+    private float startPartition = -40;
+    /** startPartition is the start of the averaging interval expressed in % of the 27.12 MHz clock cycle, relative to the detected peak position */
+    private float endPartition = -15;
+
+    @Override
+    public void initModule() {
+        moduleTitle = "RFResample";
+        prefix = "RFResampled ";
+        moduleDescription = "Resamples traces at 27.12 MHz with synchronisation";
+        helpFile = "doc/modulesRFResample.html";
+    }
+
+    @Override
+    public JPanel initDialog() {
+        /* Extra panel that contains the Partition panel & Synchronization panel */
+        JPanel tmp = new JPanel();
+        tmp.setLayout(new GridLayout(1, 2));
+
+        /* Main panel */
+        mainPanel = new JPanel();
+        mainPanel.setLayout(new BorderLayout());
+        mainPanel.add(tmp, BorderLayout.CENTER);
+
+        return mainPanel;
+    }
+
+    @Override
+    public long getRequiredMemorySize() {
+        return 0; // return required number of bytes here
+    }
+
+    @Override
+    public boolean initProcess() {
+        boolean result = true;
+        
+        resampleFrequency = RESAMPLE_FREQUENCY;
+        margin = (float) 0.01;
+        orgLength = 0;
+        fftSize = 0;
+        if (resampleFrequency > sampleFrequency && sampleFrequency != 1) {
+            err("WARNING: Resample frequency must be lower than sample frequency");
+            result = false;
+        }
+
+        return result;
+    }
+
+     /**
+     * getPeakIndex searches within a time interval for the trace sample index
+     * where the trace samples show the highest positieve or negative value
+     * for the time derivative
+     * The module amplifies the time derivative in the centra of the search interval by a factor 2
+     * 
+     * @param t Trace to process
+     * @param offset Trace sample index to start of search interval
+     * @param length Length of the search interval
+     * @return trace sample index
+     * @throws DataOperationException
+     */
+
+    private int getPeakIndex(Trace t, int offset, int length) {
+        float currentValue = 0;
+        if (offset < 0) {
+            offset = 0;
+        }
+
+        if (offset >= t.getNumberOfSamples()) {
+            offset = t.getNumberOfSamples() - 1;
+        }
+
+        if (offset + length >= t.getNumberOfSamples()) {
+            length = t.getNumberOfSamples() - offset;
+        }
+
+        float value = -1 * Math.abs(t.getSample(offset + 1) - t.getSample(offset));
+        int index = offset;
+
+        /**
+        * calculate the time derivative by subtracting two succeeding samples 
+        * calculate the absolute value of the time derivative
+        * amplify the time derivative by a factor 2 in the centre of the search interval
+        */ 
+        for (int i = offset; i < offset + length; i++) {
+            currentValue = (float) Math.abs((t.getSample(i + 1) - t.getSample(i)) / (1.0 + (Math.abs(i - (offset + length / 2.0)) / (length / 2.0))));
+            if (currentValue > value) {
+                value = currentValue;
+                index = i;
+            }
+        }
+
+        return index;
+    }
+
+    /**
+     * Method for processing a single trace this method will be called if you set variable numberOfResultTraces
+     * 
+     * @param t Trace to process
+     * @return resulting Trace
+     * @throws DataOperationException
+     */
+    @Override
+    public Trace process(Trace t) throws DataOperationException {
+        float floatCurrentIndex = 0;
+        int k = 0;
+
+        float[] resample;
+        factor = resampleFrequency / sampleFrequency;
+
+        resampleLength = (int) Math.ceil(t.getNumberOfSamples() * factor);
+
+        if (orgLength != t.getNumberOfSamples()) {
+            computeFrequency(t, resampleFrequency);
+        }
+
+        resample = new float[resampleLength + 1];
+
+        float floatSamplesPerClockCycle = ((1 / resampleFrequency) / xScale);
+        int samplesPerClockCycle = Math.round(floatSamplesPerClockCycle);
+        /* search for peak in abs of time derivative over clock cycles #1, #2 and #3, skipping cycle #0 */
+        int currentIndex = getPeakIndex(t, samplesPerClockCycle, 3 * samplesPerClockCycle);
+        /* based on previously found peak, shift back to position within clock cycle #1 */
+        if (currentIndex > 2 * samplesPerClockCycle) {
+            currentIndex -= samplesPerClockCycle;
+        }
+        if (currentIndex > 2 * samplesPerClockCycle) {
+            currentIndex -= samplesPerClockCycle;
+        }
+        
+        while (currentIndex + samplesPerClockCycle < t.getNumberOfSamples() && k < resample.length) {
+            /* Determine exact starting position of current clock cycle... */
+            int peakIndex = getPeakIndex(t, currentIndex - Math.round(floatSamplesPerClockCycle / 2), samplesPerClockCycle);
+            /* calculate the start and end of the averaging interval for the resample process */
+            int startIndex = peakIndex + Math.round(startPartition * samplesPerClockCycle / 100);
+            int endIndex = peakIndex + Math.round(endPartition * samplesPerClockCycle / 100);
+            int length = 0;
+
+            if (startIndex < 0) {
+                startIndex = 0;
+            }
+
+            if (endIndex >= t.getNumberOfSamples()) {
+                endIndex = t.getNumberOfSamples() - 1;
+            }
+
+            length = endIndex - startIndex;
+
+            /* Average current partition for resmple process */
+            for (int i = startIndex + 1; i < endIndex - 1; i++) {
+                resample[k] += t.getSample(i);
+            }
+            /* edges of average interval have half weight */
+            resample[k] += t.getSample(startIndex) / 2;
+            resample[k] += t.getSample(endIndex) / 2;
+
+            resample[k] /= length;
+
+            /* Move to the estimated position of the next clock cycle */
+            floatCurrentIndex += floatSamplesPerClockCycle + margin * (peakIndex - currentIndex);
+            currentIndex = Math.round(floatCurrentIndex);
+            k++;
+        }
+
+        return new Trace(t.getTitle(), t.getData(), resample, resampleFrequency);
+    }
+
+      /**
+     * cumputeFrequency computes the resampleFrequency based on a peak in the frequency spectrum
+     * within an interval set by the initialResampleFrequency and margin
+     * 
+     * @param t Trace to process
+     * @param initialResampleFrequency Frequency in the centre of the search interval
+     * @param margin Partion of the initialResampleFrequency to determine the interval width
+     * @return resampleLength Number of samples in the resulting trace set
+     * @return resampleFrequency Sample frequency of the resulting trace set
+     * @throws DataOperationException
+     */
+     private void computeFrequency(Trace t, float initialResampleFrequency) throws DataOperationException {
+        orgLength = t.getNumberOfSamples();
+        resampleFrequency = 0;
+        sampleFrequency = t.sampleFrequency;
+        if (initialResampleFrequency <= sampleFrequency) {
+            fftSize = 1;
+            while (fftSize < t.getNumberOfSamples()) {
+                fftSize <<= 1;
+            }
+            float[] freq;
+            float[] sample = new float[fftSize];
+            System.arraycopy(t.getSample(), 0, sample, 0, t.getNumberOfSamples());
+    
+            Data data = operation.createData(sample);
+            data = operation.r2hc(data);
+            data = operation.normalize(data, fftSize);
+            data = operation.hc2amplitude(data, fftSize);
+    
+            freq = data.getFloatData();
+    
+            int estimate = Math.round(fftSize * initialResampleFrequency / sampleFrequency);
+            int low = Math.round(estimate * (1 - margin));
+            int high = Math.round(estimate * (1 + margin));
+            int best = estimate;
+            float max = freq[estimate];
+            for (int i = low; i < high && i < freq.length; i++) {
+                if (i == low || freq[i] > max) {
+                    max = freq[i];
+                    best = i;
+                }
+            }
+            if (margin == 0) {
+                resampleFrequency = initialResampleFrequency;
+            } else {
+                resampleFrequency = best * sampleFrequency / fftSize;
+            }
+            factor = resampleFrequency / sampleFrequency;
+            resampleLength = (int) Math.ceil(t.getNumberOfSamples() * factor);
+            out("Resample frequency: " + resampleFrequency);
+        } else {
+            err("ERROR: Resample frequency (" + initialResampleFrequency + ") must be lower than sample frequency (" + sampleFrequency + ")");
+        }
+    }
+
+}
